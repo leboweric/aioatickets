@@ -125,7 +125,7 @@ async function handlePost(req, store, fileStore, headers) {
       size: file.size,
       contentType: file.type,
       fileKey: fileKey,
-      url: `/.netlify/functions/attachments/download?fileKey=${encodeURIComponent(fileKey)}`,
+      url: `/.netlify/functions/download?fileKey=${encodeURIComponent(fileKey)}`,
       created_at: new Date().toISOString()
     }
 
