@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
-import { Ticket, Plus, Calendar, User, Tag, AlertCircle, Clock, CheckCircle, Trash2, Upload, Download, Paperclip, X } from 'lucide-react'
+import { Ticket, Plus, Calendar, User, Tag, AlertCircle, Clock, CheckCircle, Trash2, Upload, Download, Paperclip, X, Edit, Save } from 'lucide-react'
 import './App.css'
 
 function App() {
@@ -26,6 +26,8 @@ function App() {
   const [ticketToDelete, setTicketToDelete] = useState(null)
   const [selectedFiles, setSelectedFiles] = useState([])
   const [uploadingFiles, setUploadingFiles] = useState(false)
+  const [isEditingDescription, setIsEditingDescription] = useState(false)
+  const [editedDescription, setEditedDescription] = useState('')
 
   // Form state
   const [formData, setFormData] = useState({
@@ -258,6 +260,52 @@ function App() {
     } catch (error) {
       console.error('Error updating ticket priority:', error)
     }
+  }
+
+  const updateTicketDescription = async (ticketId, newDescription) => {
+    try {
+      const response = await fetch('/.netlify/functions/tickets', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: ticketId,
+          description: newDescription
+        }),
+      })
+
+      if (response.ok) {
+        setTickets(prev => prev.map(ticket => 
+          ticket.id === ticketId ? { ...ticket, description: newDescription } : ticket
+        ))
+        if (selectedTicket && selectedTicket.id === ticketId) {
+          setSelectedTicket(prev => ({ ...prev, description: newDescription }))
+        }
+      }
+    } catch (error) {
+      console.error('Error updating ticket description:', error)
+    }
+  }
+
+  const startEditingDescription = () => {
+    setEditedDescription(selectedTicket.description)
+    setIsEditingDescription(true)
+  }
+
+  const saveDescription = async () => {
+    if (editedDescription.trim() === '') {
+      alert('Description cannot be empty')
+      return
+    }
+    
+    await updateTicketDescription(selectedTicket.id, editedDescription)
+    setIsEditingDescription(false)
+  }
+
+  const cancelEditingDescription = () => {
+    setIsEditingDescription(false)
+    setEditedDescription('')
   }
 
   const deleteTicket = async (ticketId) => {
@@ -752,10 +800,54 @@ function App() {
 
                   {/* Description */}
                   <div>
-                    <Label className="text-sm font-medium">Description</Label>
-                    <p className="text-sm text-gray-700 mt-2 p-3 bg-gray-50 rounded-lg">
-                      {selectedTicket.description}
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Description</Label>
+                      {!isEditingDescription && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={startEditingDescription}
+                          className="text-xs"
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {isEditingDescription ? (
+                      <div className="mt-2 space-y-2">
+                        <Textarea
+                          value={editedDescription}
+                          onChange={(e) => setEditedDescription(e.target.value)}
+                          rows={4}
+                          className="text-sm"
+                          placeholder="Enter ticket description..."
+                        />
+                        <div className="flex space-x-2">
+                          <Button
+                            size="sm"
+                            onClick={saveDescription}
+                            className="text-xs"
+                          >
+                            <Save className="h-3 w-3 mr-1" />
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={cancelEditingDescription}
+                            className="text-xs"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-700 mt-2 p-3 bg-gray-50 rounded-lg">
+                        {selectedTicket.description}
+                      </p>
+                    )}
                   </div>
 
                   {/* Comments Section */}
