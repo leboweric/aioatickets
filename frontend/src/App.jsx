@@ -395,7 +395,7 @@ function App() {
               <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                   <DialogTitle>Create New Ticket</DialogTitle>
-                  <p className="text-sm text-gray-600">Submit a new issue or request to Bennett AOIA.</p>
+                  <p className="text-sm text-gray-600">Submit a new issue or request to Bennett AIOA.</p>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
