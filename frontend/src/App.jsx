@@ -8,12 +8,13 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
-import { Ticket, Plus, Calendar, User, Tag, AlertCircle, Clock, CheckCircle, Trash2 } from 'lucide-react'
+import { Ticket, Plus, Calendar, User, Tag, AlertCircle, Clock, CheckCircle, Trash2, Upload, Download, Paperclip, X } from 'lucide-react'
 import './App.css'
 
 function App() {
   const [tickets, setTickets] = useState([])
   const [comments, setComments] = useState({})
+  const [attachments, setAttachments] = useState({})
   const [selectedTicket, setSelectedTicket] = useState(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false)
@@ -23,6 +24,8 @@ function App() {
   const [newComment, setNewComment] = useState('')
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [ticketToDelete, setTicketToDelete] = useState(null)
+  const [selectedFiles, setSelectedFiles] = useState([])
+  const [uploadingFiles, setUploadingFiles] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -80,6 +83,73 @@ function App() {
     }
   }
 
+  const fetchAttachments = async (ticketId) => {
+    try {
+      const response = await fetch(`/.netlify/functions/attachments?ticketId=${ticketId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setAttachments(prev => ({ ...prev, [ticketId]: data }))
+      }
+    } catch (error) {
+      console.error('Error fetching attachments:', error)
+    }
+  }
+
+  const handleFileSelect = (event) => {
+    const files = Array.from(event.target.files)
+    setSelectedFiles(prev => [...prev, ...files])
+  }
+
+  const removeSelectedFile = (index) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const uploadAttachment = async (file, ticketId) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('ticketId', ticketId)
+
+    try {
+      const response = await fetch('/.netlify/functions/attachments', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (response.ok) {
+        const attachment = await response.json()
+        setAttachments(prev => ({
+          ...prev,
+          [ticketId]: [...(prev[ticketId] || []), attachment]
+        }))
+        return attachment
+      }
+    } catch (error) {
+      console.error('Error uploading attachment:', error)
+    }
+    return null
+  }
+
+  const deleteAttachment = async (attachmentId, ticketId) => {
+    try {
+      const response = await fetch('/.netlify/functions/attachments', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: attachmentId })
+      })
+
+      if (response.ok) {
+        setAttachments(prev => ({
+          ...prev,
+          [ticketId]: prev[ticketId]?.filter(att => att.id !== attachmentId) || []
+        }))
+      }
+    } catch (error) {
+      console.error('Error deleting attachment:', error)
+    }
+  }
+
   const createTicket = async () => {
     if (!formData.title || !formData.category || !formData.description) {
       alert('Please fill in all required fields')
@@ -87,6 +157,7 @@ function App() {
     }
 
     try {
+      setUploadingFiles(true)
       const response = await fetch('/.netlify/functions/tickets', {
         method: 'POST',
         headers: {
@@ -101,8 +172,17 @@ function App() {
 
       if (response.ok) {
         const newTicket = await response.json()
+        
+        // Upload attachments if any
+        if (selectedFiles.length > 0) {
+          for (const file of selectedFiles) {
+            await uploadAttachment(file, newTicket.id)
+          }
+        }
+
         setTickets(prev => [newTicket, ...prev])
         setFormData({ title: '', category: '', priority: 'Medium', description: '' })
+        setSelectedFiles([])
         setIsCreateModalOpen(false)
       } else {
         alert('Failed to create ticket')
@@ -110,6 +190,8 @@ function App() {
     } catch (error) {
       console.error('Error creating ticket:', error)
       alert('Error creating ticket')
+    } finally {
+      setUploadingFiles(false)
     }
   }
 
@@ -209,6 +291,26 @@ function App() {
     setSelectedTicket(ticket)
     setIsTicketModalOpen(true)
     await fetchComments(ticket.id)
+    await fetchAttachments(ticket.id)
+  }
+
+  const handleAddAttachment = async (event) => {
+    const files = Array.from(event.target.files)
+    if (files.length > 0 && selectedTicket) {
+      setUploadingFiles(true)
+      for (const file of files) {
+        await uploadAttachment(file, selectedTicket.id)
+      }
+      setUploadingFiles(false)
+    }
+  }
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
   const getStatusColor = (status) => {
@@ -328,12 +430,72 @@ function App() {
                       rows={4}
                     />
                   </div>
+                  
+                  {/* Attachments Section */}
+                  <div>
+                    <Label>Attachments (Optional)</Label>
+                    <div className="mt-2">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600 mb-2">
+                          Drag and drop files here, or click to select
+                        </p>
+                        <p className="text-xs text-gray-500 mb-3">
+                          PDF, DOC, XLS, Images (MAX. 100MB)
+                        </p>
+                        <input
+                          type="file"
+                          multiple
+                          onChange={handleFileSelect}
+                          className="hidden"
+                          id="file-upload"
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.gif"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById('file-upload').click()}
+                        >
+                          Select Files
+                        </Button>
+                      </div>
+                      
+                      {/* Selected Files Preview */}
+                      {selectedFiles.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <Label className="text-sm font-medium">Selected Files:</Label>
+                          {selectedFiles.map((file, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                              <div className="flex items-center space-x-2">
+                                <Paperclip className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm">{file.name}</span>
+                                <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeSelectedFile(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex justify-end space-x-2">
                     <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
                       Cancel
                     </Button>
-                    <Button onClick={createTicket} className="bg-green-600 hover:bg-green-700">
-                      Create Ticket
+                    <Button 
+                      onClick={createTicket} 
+                      className="bg-green-600 hover:bg-green-700"
+                      disabled={uploadingFiles}
+                    >
+                      {uploadingFiles ? 'Creating...' : 'Create Ticket'}
                     </Button>
                   </div>
                 </div>
@@ -436,6 +598,12 @@ function App() {
                           <h3 className="font-semibold text-gray-900">#{ticket.id} {ticket.title}</h3>
                           <Badge className={getStatusColor(ticket.status)}>{ticket.status}</Badge>
                           <Badge className={getPriorityColor(ticket.priority)}>{ticket.priority}</Badge>
+                          {attachments[ticket.id]?.length > 0 && (
+                            <Badge variant="outline" className="text-gray-600">
+                              <Paperclip className="h-3 w-3 mr-1" />
+                              {attachments[ticket.id].length}
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-gray-600 text-sm mb-2">{ticket.description}</p>
                         <div className="flex items-center space-x-4 text-xs text-gray-500">
@@ -495,18 +663,7 @@ function App() {
             {selectedTicket && (
               <>
                 <DialogHeader>
-                  <div className="flex items-center justify-between">
-                    <DialogTitle>#{selectedTicket.id} {selectedTicket.title}</DialogTitle>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteClick({stopPropagation: () => {}}, selectedTicket)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Delete
-                    </Button>
-                  </div>
+                  <DialogTitle>#{selectedTicket.id} {selectedTicket.title}</DialogTitle>
                 </DialogHeader>
                 
                 <div className="space-y-6">
@@ -550,6 +707,71 @@ function App() {
                     <p className="text-sm text-gray-700 mt-2 p-3 bg-gray-50 rounded-lg">
                       {selectedTicket.description}
                     </p>
+                  </div>
+
+                  {/* Attachments Section */}
+                  <div>
+                    <Label className="text-sm font-medium">Attachments ({attachments[selectedTicket.id]?.length || 0})</Label>
+                    
+                    {/* Existing Attachments */}
+                    {attachments[selectedTicket.id]?.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {attachments[selectedTicket.id].map((attachment) => (
+                          <div key={attachment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <Paperclip className="h-4 w-4 text-gray-500" />
+                              <span className="text-sm font-medium">{attachment.filename}</span>
+                              <span className="text-xs text-gray-500">({formatFileSize(attachment.size)})</span>
+                              <span className="text-xs text-gray-500">
+                                {new Date(attachment.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(attachment.url, '_blank')}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteAttachment(attachment.id, selectedTicket.id)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add New Attachment */}
+                    <div className="mt-3">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                        <Upload className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600 mb-2">Click to add attachment</p>
+                        <input
+                          type="file"
+                          multiple
+                          onChange={handleAddAttachment}
+                          className="hidden"
+                          id="add-attachment"
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.gif"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById('add-attachment').click()}
+                          disabled={uploadingFiles}
+                        >
+                          {uploadingFiles ? 'Uploading...' : 'Add Files'}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Comments Section */}
