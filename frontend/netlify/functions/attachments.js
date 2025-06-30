@@ -152,38 +152,23 @@ async function handlePost(req, store, fileStore, headers) {
 async function handleDelete(req, store, fileStore, headers) {
   try {
     const body = await req.json()
-    const { id } = body
+    const { id, ticketId } = body
 
-    if (!id) {
-      return new Response(JSON.stringify({ error: 'Missing attachment ID' }), {
+    if (!id || !ticketId) {
+      return new Response(JSON.stringify({ error: 'Missing attachment ID or ticket ID' }), {
         status: 400,
         headers
       })
     }
 
-    // Find the attachment across all tickets
-    let foundAttachment = null
-    let foundTicketId = null
-
-    // This is not the most efficient way, but works for small datasets
-    // In a real application, you'd want a better indexing system
-    const allKeys = await store.list()
+    // Get attachments for this specific ticket
+    const attachmentsData = await store.get(`ticket-${ticketId}`)
+    const attachments = attachmentsData ? JSON.parse(attachmentsData) : []
     
-    for (const key of allKeys) {
-      if (key.startsWith('ticket-')) {
-        const attachmentsData = await store.get(key)
-        const attachments = attachmentsData ? JSON.parse(attachmentsData) : []
-        
-        const attachment = attachments.find(att => att.id === id)
-        if (attachment) {
-          foundAttachment = attachment
-          foundTicketId = key.replace('ticket-', '')
-          break
-        }
-      }
-    }
-
-    if (!foundAttachment) {
+    // Find the attachment to delete
+    const attachmentToDelete = attachments.find(att => att.id === id)
+    
+    if (!attachmentToDelete) {
       return new Response(JSON.stringify({ error: 'Attachment not found' }), {
         status: 404,
         headers
@@ -191,14 +176,16 @@ async function handleDelete(req, store, fileStore, headers) {
     }
 
     // Delete file from file store
-    await fileStore.delete(foundAttachment.fileKey)
+    try {
+      await fileStore.delete(attachmentToDelete.fileKey)
+    } catch (fileError) {
+      console.error('Error deleting file from storage:', fileError)
+      // Continue with removing from attachment list even if file deletion fails
+    }
 
     // Remove attachment from ticket's attachment list
-    const attachmentsData = await store.get(`ticket-${foundTicketId}`)
-    const attachments = attachmentsData ? JSON.parse(attachmentsData) : []
     const updatedAttachments = attachments.filter(att => att.id !== id)
-
-    await store.set(`ticket-${foundTicketId}`, JSON.stringify(updatedAttachments))
+    await store.set(`ticket-${ticketId}`, JSON.stringify(updatedAttachments))
 
     return new Response(JSON.stringify({ message: 'Attachment deleted successfully' }), {
       status: 200,
