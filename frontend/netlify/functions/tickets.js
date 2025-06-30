@@ -23,6 +23,8 @@ export default async (req, context) => {
         return await handlePost(req, store, headers)
       case 'PUT':
         return await handlePut(req, store, headers)
+      case 'DELETE':
+        return await handleDelete(req, store, headers)
       default:
         return new Response(JSON.stringify({ error: 'Method not allowed' }), {
           status: 405,
@@ -133,6 +135,50 @@ async function handlePut(req, store, headers) {
   } catch (error) {
     console.error('Error updating ticket:', error)
     return new Response(JSON.stringify({ error: 'Failed to update ticket' }), {
+      status: 500,
+      headers
+    })
+  }
+}
+
+async function handleDelete(req, store, headers) {
+  try {
+    const body = await req.json()
+    const { id } = body
+
+    if (!id) {
+      return new Response(JSON.stringify({ error: 'Missing ticket ID' }), {
+        status: 400,
+        headers
+      })
+    }
+
+    // Get existing tickets
+    const ticketsData = await store.get('all-tickets')
+    const tickets = ticketsData ? JSON.parse(ticketsData) : []
+
+    // Find ticket to delete
+    const ticketIndex = tickets.findIndex(t => t.id === id)
+    if (ticketIndex === -1) {
+      return new Response(JSON.stringify({ error: 'Ticket not found' }), {
+        status: 404,
+        headers
+      })
+    }
+
+    // Remove ticket from array
+    const deletedTicket = tickets.splice(ticketIndex, 1)[0]
+
+    // Save back to store
+    await store.set('all-tickets', JSON.stringify(tickets))
+
+    return new Response(JSON.stringify({ message: 'Ticket deleted successfully', ticket: deletedTicket }), { 
+      status: 200, 
+      headers 
+    })
+  } catch (error) {
+    console.error('Error deleting ticket:', error)
+    return new Response(JSON.stringify({ error: 'Failed to delete ticket' }), {
       status: 500,
       headers
     })
