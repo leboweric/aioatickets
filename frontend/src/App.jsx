@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
-import { Ticket, Plus, Calendar, User, Tag, AlertCircle, Clock, CheckCircle } from 'lucide-react'
+import { Ticket, Plus, Calendar, User, Tag, AlertCircle, Clock, CheckCircle, Trash2 } from 'lucide-react'
 import './App.css'
 
 function App() {
@@ -21,6 +21,8 @@ function App() {
   const [error, setError] = useState(null)
   const [activeFilter, setActiveFilter] = useState(null)
   const [newComment, setNewComment] = useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [ticketToDelete, setTicketToDelete] = useState(null)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -134,6 +136,43 @@ function App() {
       }
     } catch (error) {
       console.error('Error updating ticket status:', error)
+    }
+  }
+
+  const deleteTicket = async (ticketId) => {
+    try {
+      const response = await fetch('/.netlify/functions/tickets', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: ticketId }),
+      })
+
+      if (response.ok) {
+        setTickets(prev => prev.filter(ticket => ticket.id !== ticketId))
+        setIsTicketModalOpen(false)
+        setSelectedTicket(null)
+        setDeleteConfirmOpen(false)
+        setTicketToDelete(null)
+      } else {
+        alert('Failed to delete ticket')
+      }
+    } catch (error) {
+      console.error('Error deleting ticket:', error)
+      alert('Error deleting ticket')
+    }
+  }
+
+  const handleDeleteClick = (e, ticket) => {
+    e.stopPropagation() // Prevent opening ticket modal
+    setTicketToDelete(ticket)
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDelete = () => {
+    if (ticketToDelete) {
+      deleteTicket(ticketToDelete.id)
     }
   }
 
@@ -410,6 +449,16 @@ function App() {
                           </span>
                         </div>
                       </div>
+                      <div className="ml-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => handleDeleteClick(e, ticket)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -418,13 +467,46 @@ function App() {
           </CardContent>
         </Card>
 
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Delete Ticket</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to delete ticket #{ticketToDelete?.id}? This action cannot be undone.
+              </p>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={confirmDelete}>
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Ticket Details Modal */}
         <Dialog open={isTicketModalOpen} onOpenChange={setIsTicketModalOpen}>
           <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
             {selectedTicket && (
               <>
                 <DialogHeader>
-                  <DialogTitle>#{selectedTicket.id} {selectedTicket.title}</DialogTitle>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle>#{selectedTicket.id} {selectedTicket.title}</DialogTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteClick({stopPropagation: () => {}}, selectedTicket)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete
+                    </Button>
+                  </div>
                 </DialogHeader>
                 
                 <div className="space-y-6">
