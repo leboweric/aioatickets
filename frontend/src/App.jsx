@@ -383,7 +383,7 @@ function App() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
               <Ticket className="h-8 w-8 text-blue-600" />
-              <h1 className="text-2xl font-bold text-gray-900">Bennett AOIA Ticket System</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Bennett AIOA Ticket System</h1>
             </div>
             <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
               <DialogTrigger asChild>
