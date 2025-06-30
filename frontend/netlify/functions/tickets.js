@@ -104,10 +104,10 @@ async function handlePost(req, store, headers) {
 async function handlePut(req, store, headers) {
   try {
     const body = await req.json()
-    const { id, status } = body
+    const { id, status, priority, description } = body
 
-    if (!id || !status) {
-      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+    if (!id || (!status && !priority && !description)) {
+      return new Response(JSON.stringify({ error: 'Missing required fields (id and status, priority, or description)' }), {
         status: 400,
         headers
       })
@@ -126,7 +126,16 @@ async function handlePut(req, store, headers) {
       })
     }
 
-    tickets[ticketIndex].status = status
+    // Update the ticket with provided fields
+    if (status) {
+      tickets[ticketIndex].status = status
+    }
+    if (priority) {
+      tickets[ticketIndex].priority = priority
+    }
+    if (description) {
+      tickets[ticketIndex].description = description
+    }
 
     // Save back to store
     await store.set('all-tickets', JSON.stringify(tickets))
