@@ -486,7 +486,7 @@ function App() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
               <Ticket className="h-8 w-8 text-blue-600" />
-              <h1 className="text-2xl font-bold text-gray-900">Bennett AOIA Ticket System</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Bennett AIOA Ticket System</h1>
             </div>
             <Dialog open={isCreateModalOpen} onOpenChange={handleCreateModalClose}>
               <DialogTrigger asChild>
@@ -498,7 +498,7 @@ function App() {
               <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                   <DialogTitle>Create New Ticket</DialogTitle>
-                  <p className="text-sm text-gray-600">Submit a new issue or request to Bennett AOIA.</p>
+                  <p className="text-sm text-gray-600">Submit a new issue or request to Bennett AIOA.</p>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
