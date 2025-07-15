@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
-import { Ticket, Plus, Calendar, User, Tag, AlertCircle, Clock, CheckCircle, Trash2, Upload, Download, Paperclip, X, Edit, Save } from 'lucide-react'
+import { Ticket, Plus, Calendar, User, Tag, AlertCircle, Clock, CheckCircle, Trash2, Upload, Download, Paperclip, X, Edit, Save, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
 import './App.css'
 
 function App() {
@@ -30,6 +31,9 @@ function App() {
   const [editedDescription, setEditedDescription] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [isDraggingExisting, setIsDraggingExisting] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState({})
+  const [showUploadStatus, setShowUploadStatus] = useState(false)
+  const [ticketsUploadingFiles, setTicketsUploadingFiles] = useState(new Set())
 
   // Form state
   const [formData, setFormData] = useState({
@@ -251,17 +255,53 @@ function App() {
 
       if (response.ok) {
         const newTicket = await response.json()
+        setTickets(prev => [newTicket, ...prev])
         
         // Upload attachments if any
         if (selectedFiles.length > 0) {
-          for (const file of selectedFiles) {
-            await uploadAttachment(file, newTicket.id)
+          // Mark ticket as uploading files
+          setTicketsUploadingFiles(prev => new Set([...prev, newTicket.id]))
+          setShowUploadStatus(true)
+          setUploadProgress({})
+          
+          // Upload files with progress tracking
+          for (let i = 0; i < selectedFiles.length; i++) {
+            const file = selectedFiles[i]
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.name]: { status: 'uploading', progress: 0 }
+            }))
+            
+            const result = await uploadAttachment(file, newTicket.id)
+            
+            if (result) {
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.name]: { status: 'completed', progress: 100 }
+              }))
+            } else {
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.name]: { status: 'failed', progress: 0 }
+              }))
+            }
           }
+          
+          // Wait a moment to show completion status
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          
+          // Remove uploading status
+          setTicketsUploadingFiles(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(newTicket.id)
+            return newSet
+          })
         }
 
-        setTickets(prev => [newTicket, ...prev])
         setFormData({ title: '', category: '', priority: 'Medium', description: '' })
         setSelectedFiles([])
+        setUploadProgress({})
+        setShowUploadStatus(false)
         
         // Clear the file input element
         const fileInput = document.getElementById('file-upload')
@@ -651,7 +691,7 @@ function App() {
                       </div>
                       
                       {/* Selected Files Preview */}
-                      {selectedFiles.length > 0 && (
+                      {selectedFiles.length > 0 && !showUploadStatus && (
                         <div className="mt-3 space-y-2">
                           <Label className="text-sm font-medium">Selected Files:</Label>
                           {selectedFiles.map((file, index) => (
@@ -673,11 +713,55 @@ function App() {
                           ))}
                         </div>
                       )}
+                      
+                      {/* Upload Progress Status */}
+                      {showUploadStatus && (
+                        <div className="mt-3 space-y-2">
+                          <Label className="text-sm font-medium">Uploading Files:</Label>
+                          {selectedFiles.map((file, index) => {
+                            const progress = uploadProgress[file.name] || { status: 'waiting', progress: 0 }
+                            return (
+                              <div key={index} className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-2">
+                                    {progress.status === 'uploading' && (
+                                      <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                                    )}
+                                    {progress.status === 'completed' && (
+                                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                    )}
+                                    {progress.status === 'failed' && (
+                                      <XCircle className="h-4 w-4 text-red-500" />
+                                    )}
+                                    {progress.status === 'waiting' && (
+                                      <Clock className="h-4 w-4 text-gray-400" />
+                                    )}
+                                    <span className="text-sm">{file.name}</span>
+                                  </div>
+                                  <span className="text-xs text-gray-500">
+                                    {progress.status === 'uploading' && 'Uploading...'}
+                                    {progress.status === 'completed' && 'Uploaded'}
+                                    {progress.status === 'failed' && 'Failed'}
+                                    {progress.status === 'waiting' && 'Waiting...'}
+                                  </span>
+                                </div>
+                                {progress.status === 'uploading' && (
+                                  <Progress value={progress.progress} className="h-1" />
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => handleCreateModalClose(false)}>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleCreateModalClose(false)}
+                      disabled={showUploadStatus}
+                    >
                       Cancel
                     </Button>
                     <Button 
@@ -685,7 +769,7 @@ function App() {
                       className="bg-green-600 hover:bg-green-700"
                       disabled={uploadingFiles}
                     >
-                      {uploadingFiles ? 'Creating...' : 'Create Ticket'}
+                      {showUploadStatus ? 'Uploading Files...' : uploadingFiles ? 'Creating Ticket...' : 'Create Ticket'}
                     </Button>
                   </div>
                 </div>
@@ -792,6 +876,12 @@ function App() {
                             <Badge variant="outline" className="text-gray-600">
                               <Paperclip className="h-3 w-3 mr-1" />
                               {attachments[ticket.id].length}
+                            </Badge>
+                          )}
+                          {ticketsUploadingFiles.has(ticket.id) && (
+                            <Badge variant="outline" className="text-blue-600 bg-blue-50">
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Uploading files...
                             </Badge>
                           )}
                         </div>
