@@ -28,6 +28,8 @@ function App() {
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [editedDescription, setEditedDescription] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
+  const [isDraggingExisting, setIsDraggingExisting] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -108,6 +110,68 @@ function App() {
 
   const removeSelectedFile = (index) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Drag and drop handlers for new ticket
+  const handleDragEnter = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      setSelectedFiles(prev => [...prev, ...files])
+    }
+  }
+
+  // Drag and drop handlers for existing ticket
+  const handleDragEnterExisting = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingExisting(true)
+  }
+
+  const handleDragLeaveExisting = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingExisting(false)
+  }
+
+  const handleDragOverExisting = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDropExisting = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingExisting(false)
+    
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0 && selectedTicket) {
+      setUploadingFiles(true)
+      for (const file of files) {
+        await uploadAttachment(file, selectedTicket.id)
+      }
+      setUploadingFiles(false)
+    }
   }
 
   const uploadAttachment = async (file, ticketId) => {
@@ -551,8 +615,18 @@ function App() {
                   <div>
                     <Label>Attachments (Optional)</Label>
                     <div className="mt-2">
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <div 
+                        className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                          isDragging 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                      >
+                        <Upload className={`h-8 w-8 ${isDragging ? 'text-blue-500' : 'text-gray-400'} mx-auto mb-2`} />
                         <p className="text-sm text-gray-600 mb-2">
                           Drag and drop files here, or click to select
                         </p>
@@ -947,9 +1021,19 @@ function App() {
 
                     {/* Add New Attachment */}
                     <div className="mt-3">
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
-                        <Upload className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-600 mb-2">Click to add attachment</p>
+                      <div 
+                        className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                          isDraggingExisting 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onDragEnter={handleDragEnterExisting}
+                        onDragLeave={handleDragLeaveExisting}
+                        onDragOver={handleDragOverExisting}
+                        onDrop={handleDropExisting}
+                      >
+                        <Upload className={`h-6 w-6 ${isDraggingExisting ? 'text-blue-500' : 'text-gray-400'} mx-auto mb-2`} />
+                        <p className="text-sm text-gray-600 mb-2">Drag and drop files here, or click to add</p>
                         <input
                           type="file"
                           multiple
